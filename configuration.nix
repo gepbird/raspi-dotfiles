@@ -104,7 +104,7 @@
       };
     };
   };
-  
+
   services.github-runners = {
     website = {
       enable = true;
@@ -333,7 +333,17 @@
 
   services.ddclient = {
     enable = true;
-    configFile = config.age.secrets.ddclient.path;
+    protocol = "porkbun";
+    domains = [
+      ".ymstnt.com"
+      "social.ymstnt.com"
+      "n8n.ymstnt.com"
+      "dev.ymstnt.com"
+    ];
+    verbose = true;
+    usev4 = "webv4,webv4=api.ipify.org/";
+    usev6 = ""; # ddclient prioritizes v6 which is unavailable at voda, empty string to disable it
+    extraConfig = builtins.readFile config.age.secrets.ddclient.path;
   };
 
   environment.shellInit = "umask 002";

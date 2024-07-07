@@ -41,6 +41,7 @@
     " d    /var/media/media-server/Movies 0755 ymstnt shared"
     " d    /var/media/media-server/Shows  0755 ymstnt shared"
     " d    /var/media/media-server/Anime  0755 ymstnt shared"
+    " d    /var/lib/authelia-main         0755 shared shared"
     " d    /var/moe                       0750 moe    shared"
     " d    /var/www/ymstnt.com            2770 nginx  shared"
     " d    /var/www/ymstnt.com-generated  0775 shared shared"
@@ -56,6 +57,8 @@
     miniflux.file = ./secrets/miniflux.age;
     gotosocial.file = ./secrets/gotosocial.age;
     ddclient.file = ./secrets/ddclient.age;
+    authelia-jwt.file = ./secrets/authelia-jwt.age;
+    authelia-storage.file = ./secrets/authelia-storage.age;
   };
 
   services.avahi.enable = true;
@@ -274,6 +277,17 @@
             };
           };
         };
+        "auth.ymstnt.com" = {
+          enableACME = true;
+          forceSSL = true;
+          locations = {
+            "/" = {
+              proxyPass = "http://127.0.0.0:${toString config.services.authelia.instances.main.settings.server.port}";
+              recommendedProxySettings = true;
+              proxyWebsockets = true;
+            };
+          };
+        };
       };
   };
 
@@ -320,6 +334,53 @@
   services.mysql = {
     enable = true;
     package = pkgs.mariadb;
+  };
+
+  services.authelia.instances.main = {
+    enable = true;
+    user = "shared";
+    group = "shared";
+    secrets = {
+      jwtSecretFile = config.age.secrets.authelia-jwt.path;
+      storageEncryptionKeyFile = config.age.secrets.authelia-storage.path;
+    };
+    settings = {
+      theme = "auto";
+      default_redirection_url = "https://ymstnt.com";
+      
+      server = {
+        host = "127.0.0.1";
+        port = 9097;
+      };
+
+      log = {
+        level = "debug";
+        format = "text";
+      };
+
+      authentication_backend = {
+        file = {
+          path = "/var/lib/authelia-main/users_database.yml";
+        };
+      };
+
+      access_control = {
+        default_policy = "deny";
+        rules = [
+          {
+            domain = ["auth.ymstnt.com"];
+            policy = "bypass";
+          }
+          {
+            domain = [
+              "*.ymstnt.com"
+              "ymstnt.com"
+            ];
+            policy = "one_factor";
+          }
+        ];
+      };
+    };
   };
 
   services.openssh = {

@@ -15,4 +15,6 @@ in
   "openai-token-gep.age".publicKeys = keys;
   "gotosocial.age".publicKeys = keys;
   "ddclient.age".publicKeys = keys;
+  "authelia-jwt.age".publicKeys = keys;
+  "authelia-storage.age".publicKeys = keys;
 }

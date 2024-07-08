@@ -382,6 +382,33 @@
       };
     };
   };
+  # TODO: remove workaround after fixed: https://github.com/NixOS/nixpkgs/issues/325374
+  systemd.services.authelia-main =
+    let
+      cfg = config.services.authelia.instances.main;
+      originalPreStart = config.systemd.services.authelia-main.preStart;
+      home = "/var/lib/authelia/main";
+      homeJwtSecretFile = "${home}/jwt-secret";
+      homeStorageEncryptionKeyFile = "${home}/storage-encryption-key";
+      install = lib.getExe' pkgs.coreutils "install";
+    in
+    {
+      environment = lib.mkForce {
+        AUTHELIA_JWT_SECRET_FILE = homeJwtSecretFile;
+        AUTHELIA_STORAGE_ENCRYPTION_KEY_FILE = homeStorageEncryptionKeyFile;
+      };
+      preStart = lib.mkForce "";
+      serviceConfig.ExecStartPre = [
+        # "+" will make this script run as root
+        ("+" + pkgs.writeShellScript "authelia-main-prestart" ''
+          echo "installing secrets"
+          ${install} -D -m 600 -o '${cfg.user}' -g '${cfg.group}' '${cfg.secrets.jwtSecretFile}' '${homeJwtSecretFile}'
+          ${install} -D -m 600 -o '${cfg.user}' -g '${cfg.group}' '${cfg.secrets.storageEncryptionKeyFile}' '${homeStorageEncryptionKeyFile}'
+          echo "validating config"
+          ${originalPreStart}
+        '')
+      ];
+    };
 
   services.openssh = {
     enable = true;

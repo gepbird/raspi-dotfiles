@@ -229,6 +229,17 @@
           };
         };
       };
+      "notes.ymstnt.com" = {
+        enableACME = true;
+        forceSSL = true;
+        locations = {
+          "/" = {
+            proxyPass = "http://${toString config.services.silverbullet.listenAddress}:${toString config.services.silverbullet.listenPort}";
+            recommendedProxySettings = true;
+            proxyWebsockets = true;
+          };
+        };
+      };
     };
   };
 
@@ -254,6 +265,13 @@
       storage-local-base-path = "/var/lib/gotosocial/storage";
     };
     environmentFile = config.age.secrets.gotosocial.path;
+  };
+
+  services.silverbullet = {
+    enable = true;
+    group = "shared";
+    user = "shared";
+    openFirewall = true;
   };
 
   security.acme = {

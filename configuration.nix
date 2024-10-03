@@ -52,6 +52,26 @@
     miniflux.file = ./secrets/miniflux.age;
     gotosocial.file = ./secrets/gotosocial.age;
     borgmatic-raspi.file = ./secrets/borgmatic-raspi.age;
+    authelia-jwt.file = ./secrets/authelia-jwt.age;
+    authelia-sekf.file = ./secrets/authelia-sekf.age;
+    authelia-ssf.file = ./secrets/authelia-ssf.age;
+    authelia-hmac.file = ./secrets/authelia-hmac.age;
+    authelia-ipvk.file = ./secrets/authelia-ipvk.age;
+    lldap-jwt = {
+      file = ./secrets/lldap-jwt.age;
+      mode = "0440";
+      group = "lldap";
+    };
+    lldap-private-key = {
+      file = ./secrets/lldap-private-key.age;
+      mode = "0440";
+      group = "lldap";
+    };
+    lldap-user-pass = { 
+      file = ./secrets/lldap-user-pass.age;
+      mode = "0440";
+      group = "lldap";
+    };
   };
 
   services.avahi.enable = true;
@@ -242,6 +262,47 @@
       };
     };
   };
+
+  services.authelia.instances.main = {
+    enable = true;
+    secrets = {
+      jwtSecretFile = config.age.secrets.authelia-jwt.path;
+      storageEncryptionKeyFile = config.age.secrets.authelia-sekf.path;
+      sessionSecretFile = config.age.secrets.authelia-ssf.path;
+      oidcHmacSecretFile = config.age.secrets.authelia-hmac.path;
+      oidcIssuerPrivateKeyFile = config.age.secrets.authelia-ipvk.path;
+    };
+    settings = {
+      theme = "auto";
+      default_2fa_method = "totp";
+      server = {
+        host = "localhost";
+        port = 9092;
+      };
+      log.level = "info";
+      regulation = {
+        max_retries = 3;
+        find_time = 120;
+        ban_time = 300;
+      };
+      totp.issuer = "authelia.com";
+    };
+  };
+
+  services.lldap = {
+    enable = true;
+    settings = {
+      http_url = "https://ldap.ymstnt.com";
+      ldap_base_dn = "dc=ymstnt,dc=com";
+      key_file = config.age.secrets.lldap-private-key.path;
+    };
+    environment = {
+      LLDAP_JWT_SECRET_FILE = config.age.secrets.lldap-jwt.path;
+      LLDAP_LDAP_USER_PASS_FILE = config.age.secrets.lldap-user-pass.path;
+    };
+  };
+
+  systemd.services.lldap.serviceConfig.SupplementaryGroups = [ "lldap-secrets" ];
 
   services.miniflux = {
     enable = true;

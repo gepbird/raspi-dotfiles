@@ -15,4 +15,12 @@ in
   "openai-token-gep.age".publicKeys = keys;
   "gotosocial.age".publicKeys = keys;
   "borgmatic-raspi.age".publicKeys = keys;
+  "authelia-jwt.age".publicKeys = keys;
+  "authelia-sekf.age".publicKeys = keys;
+  "authelia-ssf.age".publicKeys = keys;
+  "authelia-hmac.age".publicKeys = keys;
+  "authelia-ipvk.age".publicKeys = keys;
+  "lldap-jwt.age".publicKeys = keys;
+  "lldap-user-pass.age".publicKeys = keys;
+  "lldap-private-key.age".publicKeys = keys;
 }

@@ -158,7 +158,60 @@
     appendConfig = ''
       error_log /var/log/nginx/error.log debug;
     '';
-    virtualHosts = {
+    virtualHosts =
+      let
+        autheliaVirtualHostConfig = ''
+          # Basic Authelia Config
+          # Send a subsequent request to Authelia to verify if the user is authenticated
+          # and has the right permissions to access the resource.
+          auth_request /authelia;
+          # Set the `target_url` variable based on the request. It will be used to build the portal
+          # URL with the correct redirection parameter.
+          auth_request_set $target_url $scheme://$http_host$request_uri;
+          # Set the X-Forwarded-User and X-Forwarded-Groups with the headers
+          # returned by Authelia for the backends which can consume them.
+          # This is not safe, as the backend must make sure that they come from the
+          # proxy. In the future, it's gonna be safe to just use OAuth.
+          auth_request_set $user $upstream_http_remote_user;
+          auth_request_set $groups $upstream_http_remote_groups;
+          auth_request_set $name $upstream_http_remote_name;
+          auth_request_set $email $upstream_http_remote_email;
+          proxy_set_header Remote-User $user;
+          proxy_set_header Remote-Groups $groups;
+          proxy_set_header Remote-Name $name;
+          proxy_set_header Remote-Email $email;
+          # If Authelia returns 401, then nginx redirects the user to the login portal.
+          # If it returns 200, then the request pass through to the backend.
+          # For other type of errors, nginx will handle them as usual.
+          error_page 401 =302 https://auth.ymstnt.com/?rd=$target_url;
+        '';
+        autheliaLocationConfig = ''
+          # Basic Authelia Config
+          # Send a subsequent request to Authelia to verify if the user is authenticated
+          # and has the right permissions to access the resource.
+          auth_request /authelia;
+          # Set the `target_url` variable based on the request. It will be used to build the portal
+          # URL with the correct redirection parameter.
+          auth_request_set $target_url $scheme://$http_host$request_uri;
+          # Set the X-Forwarded-User and X-Forwarded-Groups with the headers
+          # returned by Authelia for the backends which can consume them.
+          # This is not safe, as the backend must make sure that they come from the
+          # proxy. In the future, it's gonna be safe to just use OAuth.
+          auth_request_set $user $upstream_http_remote_user;
+          auth_request_set $groups $upstream_http_remote_groups;
+          auth_request_set $name $upstream_http_remote_name;
+          auth_request_set $email $upstream_http_remote_email;
+          proxy_set_header Remote-User $user;
+          proxy_set_header Remote-Groups $groups;
+          proxy_set_header Remote-Name $name;
+          proxy_set_header Remote-Email $email;
+          # If Authelia returns 401, then nginx redirects the user to the login portal.
+          # If it returns 200, then the request pass through to the backend.
+          # For other type of errors, nginx will handle them as usual.
+          error_page 401 =302 https://auth.ymstnt.com/?rd=$target_url;
+        '';
+      in
+      {
       "ymstnt.com" = {
         enableACME = true;
         forceSSL = true;
@@ -168,7 +221,7 @@
           client_max_body_size 50G;
           fastcgi_read_timeout 24h;
         '';
-        locations = {
+        locations = { 
           "~ ^([^.\?]*[^/])$".extraConfig = ''
             if (-d $document_root/ymstnt.com-generated$uri) {
               rewrite ^([^.]*[^/])$ $1/ permanent;
@@ -252,14 +305,24 @@
       "notes.ymstnt.com" = {
         enableACME = true;
         forceSSL = true;
+        extraConfig = autheliaVirtualHostConfig;
         locations = {
           "/" = {
             proxyPass = "http://${toString config.services.silverbullet.listenAddress}:${toString config.services.silverbullet.listenPort}";
             recommendedProxySettings = true;
             proxyWebsockets = true;
+            extraConfig = autheliaLocationConfig;
           };
         };
       };
+      "auth.ymstnt.com" = {
+        enableACME = true;
+        forceSSL = true;
+        locations."/" = {
+          proxyPass = "127.0.0.1:9091";
+          proxyWebsockets = true;
+        };
+     };
     };
   };
 
@@ -277,7 +340,6 @@
       default_2fa_method = "totp";
       server = {
         host = "localhost";
-        port = 9092;
       };
       log.level = "info";
       regulation = {
@@ -286,6 +348,60 @@
         ban_time = 300;
       };
       totp.issuer = "authelia.com";
+      authentication_backend = {
+        password_reset.disable = false;
+        refresh_interval = "1m";
+        ldap = {
+          implementation = "custom";
+          url = "ldap://localhost:3890";
+          timeout = "5m";
+          start_tls = false;
+          base_dn = "dc=ymstnt,dc=com";
+          username_attribute = "uid";
+          additional_users_dn = "people";
+          users_filter = "(&({username_attribute}={input})(objectClass=person))";
+          additional_groupd_dn = "ou=groups";
+          groups_filter = "(member={dn})";
+          group_name_attribute = "cn";
+          mail_attribute = "mail";
+          display_name_attribute = "displayName";
+          user = "uid=admin,ou=people,dc=ymstnt,dc=com";
+        };
+      };
+      access_control = {
+        default_policy = "deny";
+        networks = [
+          {
+            name = "localhost";
+            networks = [ "127.0.0.1/32" ];
+          }
+          {
+            name = "internal";
+            networks = [
+              "192.168.0.0/24"
+            ];
+          }
+        ];
+        rules = [
+          {
+            domain = "auth.ymstnt.com";
+            policy = "bypass";
+          }
+          {
+            domain = "ymstnt.com";
+            policy = "bypass";
+          }
+          {
+            domain = "notes.ymstnt.com";
+            resources = [
+              "/.client/manifest.json$"
+              "/.client/[a-zA-Z0-9_-]+.png$"
+              "/service_worker.js$"
+            ];
+            policy = "bypass";
+          }
+        ];
+      };
     };
   };
 
@@ -294,15 +410,13 @@
     settings = {
       http_url = "https://ldap.ymstnt.com";
       ldap_base_dn = "dc=ymstnt,dc=com";
-      key_file = config.age.secrets.lldap-private-key.path;
+      key_seed = config.age.secrets.lldap-private-key.path;
     };
     environment = {
       LLDAP_JWT_SECRET_FILE = config.age.secrets.lldap-jwt.path;
       LLDAP_LDAP_USER_PASS_FILE = config.age.secrets.lldap-user-pass.path;
     };
   };
-
-  systemd.services.lldap.serviceConfig.SupplementaryGroups = [ "lldap-secrets" ];
 
   services.miniflux = {
     enable = true;
@@ -340,7 +454,7 @@
     defaults.email = "ymstnt@mailbox.org";
   };
 
-  networking.firewall.allowedTCPPorts = [ 80 443 ];
+  networking.firewall.allowedTCPPorts = [ 80 443 17170 ];
 
   services.mysql = {
     enable = true;
@@ -449,9 +563,19 @@
       isSystemUser = true;
       group = "shared";
     };
+    lldap = {
+      isSystemUser = true;
+      group = "lldap";
+      extraGroups = [
+        "shared"
+      ];
+    };
   };
 
-  users.groups.shared = { };
+  users.groups = {
+    shared = { };
+    lldap = { };
+  };
 
   moe = {
     enable = true;

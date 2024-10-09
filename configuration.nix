@@ -319,7 +319,7 @@
         enableACME = true;
         forceSSL = true;
         locations."/" = {
-          proxyPass = "127.0.0.1:9091";
+          proxyPass = "http://127.0.0.1:9091";
           proxyWebsockets = true;
         };
      };
@@ -360,7 +360,7 @@
           username_attribute = "uid";
           additional_users_dn = "people";
           users_filter = "(&({username_attribute}={input})(objectClass=person))";
-          additional_groupd_dn = "ou=groups";
+          #additional_groupd_dn = "ou=groups";
           groups_filter = "(member={dn})";
           group_name_attribute = "cn";
           mail_attribute = "mail";
@@ -401,6 +401,24 @@
             policy = "bypass";
           }
         ];
+      };
+      session = {
+        name = "authelia_session";
+        expiration = "12h";
+        inactivity = "45m";
+        remember_me_duration = "1M";
+        domain = "ymstnt.com";
+      };
+      storage = {
+        local = {
+          path = "/var/lib/authelia-main/db.sqlite3";
+        };
+      };
+      notifier = {
+        disable_startup_check = false;
+        filesystem = {
+          filename = "/var/lib/authelia-main/notifications.txt";
+        };
       };
     };
   };
